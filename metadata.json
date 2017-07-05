@@ -1,0 +1,6 @@
+{
+  "itemDisplayName": "Deploy a VM Scale Set with Linux VMs and Auto Scale",
+  "description": "This template allows you to deploy a simple VM Scale Set of Linux VMs using the latest patched version of CentOS Linux 7.3.",
+  "githubUsername": "herbertcampelo",
+  "dateUpdated": "2017-07-05"
+}

@@ -1,0 +1,333 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "rancherApi": {
+        "type": "string",
+        "defaultValue": "",
+        "metadata": {
+            "description": "O link da API do Rancher. Ex: http://myrancherhost.kvaes.be:8080/v1/scripts/AA12A123A1A1234A12A1:1234567890000:aAaaaaA1AaAaAlaAAaaaaAAAaaA"
+        }
+    },
+    "vmSku": {
+      "type": "string",
+      "metadata": {
+        "description": "Size of VMs in the VM Scale Set."
+      },
+      "allowedValues": [
+        "Standard_A0",
+        "Standard_A1",
+        "Standard_A2",
+        "Standard_A3",
+        "Standard_A4",
+        "Basic_A0",
+        "Basic_A1",
+        "Basic_A2",
+        "Basic_A3",
+        "Basic_A4",
+        "Standard_A5",
+        "Standard_A6",
+        "Standard_A7",
+        "Standard_D1",
+        "Standard_D2",
+        "Standard_D3",
+        "Standard_D4",
+        "Standard_D11",
+        "Standard_D12",
+        "Standard_D13",
+        "Standard_D14",
+        "Standard_D1_v2",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2",
+        "Standard_D11_v2",
+        "Standard_D12_v2",
+        "Standard_D13_v2",
+        "Standard_D14_v2",
+        "Standard_DS1",
+        "Standard_DS2",
+        "Standard_DS3",
+        "Standard_DS4",
+        "Standard_DS11",
+        "Standard_DS12",
+        "Standard_DS13",
+        "Standard_DS14",
+        "Standard_G1",
+        "Standard_G2",
+        "Standard_G3",
+        "Standard_G4",
+        "Standard_G5",
+        "Standard_GS1",
+        "Standard_GS2",
+        "Standard_GS3",
+        "Standard_GS4",
+        "Standard_GS5",
+        "Standard_A8",
+        "Standard_A9",
+        "Standard_A10",
+        "Standard_A11"
+      ],
+      "defaultValue": "Standard_D3_v2"
+    },
+    "centOSVersion": {
+      "type": "string",
+      "defaultValue": "7.3",
+      "allowedValues": [
+        "7.3"
+      ],
+      "metadata": {
+        "description": "A versão do CentOS da VM. Versão aceita: 7.3 OpenLogic"
+      }
+    },
+    "redeVirtual": {
+      "type": "string",
+      "metadata": {
+        "description": "Nome da Rede virtual. Digitar até se escolher o mesmo Grupo de Recursos. Ex.: pier-vnet"
+      },
+      "defaultValue": ""
+    },
+    "redeVirtualPrefixo": {
+      "type": "string",
+      "metadata": {
+        "description": "Rede IP e máscara da Rede Virtual."
+      },
+      "defaultValue": ""
+    },
+    "subRede": {
+      "type": "string",
+      "metadata": {
+        "description": "Nome da SubRede. Digitar até se escolher o mesmo Grupo de Recursos. Ex.: pier"
+      },
+      "defaultValue": ""
+    },
+    "subRedePrefixo": {
+      "type": "string",
+      "metadata": {
+        "description": "Rede IP e máscara da Subrede."
+      },
+      "defaultValue": ""
+    },
+    "vmssName": {
+      "type": "string",
+      "metadata": {
+        "description": "Nome do VMSS usado para criar os recursos. Deve ter de 3-9 caracteres."
+      },
+      "maxLength": 9
+    },
+    "autoscaleNome": {
+      "type": "string",
+      "metadata": {
+        "description": "Nome do autoscale usado na criação do recurso."
+      },
+      "defaultValue": ""
+    },
+    "instanceCount": {
+      "type": "int",
+      "metadata": {
+        "description": "Numeros de VMs que serão criadas no primeiro momento. Valor mínimo de 1 e máximo de 10."
+      },
+      "defaultValue": 1,
+      "maxValue": 10
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Usuário admin para todas as VMs."
+      },
+      "defaultValue": ""
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Senha admin para todas as VMs."
+      }
+    }
+  },
+  "variables": {
+    "namingInfix": "[toLower(substring(concat(parameters('vmssName'), uniqueString(resourceGroup().id)), 0, 9))]",
+    "longNamingInfix": "[toLower(parameters('vmssName'))]",
+    "addressPrefix": "[parameters('redeVirtualPrefixo')]",
+    "subnetPrefix": "[parameters('subRedePrefixo')]",
+    "virtualNetworkName": "[parameters('redeVirtual')]",
+    "subnetName": "[parameters('subRede')]",
+    "natPoolName": "[concat(variables('namingInfix'), 'natpool')]",
+    "bePoolName": "[concat(variables('namingInfix'), 'bepool')]",
+    "natStartPort": 50000,
+    "natEndPort": 50119,
+    "natBackendPort": 22,
+    "nicName": "[concat(variables('namingInfix'), 'nic')]",
+    "ipConfigName": "[concat(variables('namingInfix'), 'ipconfig')]",
+    "osType": {
+      "publisher": "OpenLogic",
+      "offer": "CentOS",
+      "sku": "[parameters('centOSVersion')]",
+      "version": "latest"
+    },
+    "imageReference": "[variables('osType')]",
+    "computeApiVersion": "2017-03-30",
+    "networkApiVersion": "2017-04-01",
+    "storageApiVersion": "2015-06-15",
+    "insightsApiVersion": "2015-04-01"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('virtualNetworkName')]",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "[variables('networkApiVersion')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('subnetPrefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachineScaleSets",
+      "name": "[variables('namingInfix')]",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "[variables('computeApiVersion')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+      ],
+      "sku": {
+        "name": "[parameters('vmSku')]",
+        "tier": "Standard",
+        "capacity": "[parameters('instanceCount')]"
+      },
+      "properties": {
+        "overprovision": "true",
+        "upgradePolicy": {
+          "mode": "Manual"
+        },
+        "virtualMachineProfile": {
+          "storageProfile": {
+            "osDisk": {
+              "createOption": "FromImage",
+              "caching": "ReadWrite"
+            },
+            "imageReference": "[variables('imageReference')]"
+          },
+          "osProfile": {
+            "computerNamePrefix": "[variables('namingInfix')]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "networkProfile": {
+            "networkInterfaceConfigurations": [
+              {
+                "name": "[variables('nicName')]",
+                "properties": {
+                  "primary": "true",
+                  "ipConfigurations": [
+                    {
+                      "name": "[variables('ipConfigName')]",
+                      "properties": {
+                        "subnet": {
+                          "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'), '/subnets/', variables('subnetName'))]"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensionProfile": {
+            "extensions": [
+             {
+               "name": "DockerRancherAgent",
+               "properties": {
+                 "publisher": "Microsoft.Azure.Extensions",
+                 "type": "CustomScript",
+                 "typeHandlerVersion": "2.0",
+                 "autoUpgradeMinorVersion": false,
+                 "settings": {
+                   "fileUris": [
+                     "https://raw.githubusercontent.com/herbertcampelo/docker-rancher-scripts/master/agent-with-local-ip/install_docker_rancher_agent.sh"
+                   ],
+                   "commandToExecute": "[concat('sh install_docker_rancher_agent.sh ', parameters('adminPassword'), ' ', parameters('rancherApi'))]"
+                 }
+               }
+             }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/autoscaleSettings",
+      "apiVersion": "[variables('insightsApiVersion')]",
+      "name": "[parameters('autoscaleNome')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachineScaleSets/', variables('namingInfix'))]"
+      ],
+      "properties": {
+        "name": "[parameters('autoscaleNome')]",
+        "targetResourceUri": "[concat('/subscriptions/',subscription().subscriptionId, '/resourceGroups/',  resourceGroup().name, '/providers/Microsoft.Compute/virtualMachineScaleSets/', variables('namingInfix'))]",
+        "enabled": true,
+        "profiles": [
+          {
+            "name": "RancherAzure",
+            "capacity": {
+              "minimum": "1",
+              "maximum": "10",
+              "default": "1"
+            },
+            "rules": [
+              {
+                "metricTrigger": {
+                  "metricName": "Percentage CPU",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[concat('/subscriptions/',subscription().subscriptionId, '/resourceGroups/',  resourceGroup().name, '/providers/Microsoft.Compute/virtualMachineScaleSets/', variables('namingInfix'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT5M",
+                  "timeAggregation": "Average",
+                  "operator": "GreaterThan",
+                  "threshold": 300.0
+                },
+                "scaleAction": {
+                  "direction": "Increase",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT1M"
+                }
+              },
+              {
+                "metricTrigger": {
+                  "metricName": "Percentage CPU",
+                  "metricNamespace": "",
+                  "metricResourceUri": "[concat('/subscriptions/',subscription().subscriptionId, '/resourceGroups/',  resourceGroup().name, '/providers/Microsoft.Compute/virtualMachineScaleSets/', variables('namingInfix'))]",
+                  "timeGrain": "PT1M",
+                  "statistic": "Average",
+                  "timeWindow": "PT5M",
+                  "timeAggregation": "Average",
+                  "operator": "LessThan",
+                  "threshold": 120.0
+                },
+                "scaleAction": {
+                  "direction": "Decrease",
+                  "type": "ChangeCount",
+                  "value": "1",
+                  "cooldown": "PT5M"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
