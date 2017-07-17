@@ -48,6 +48,8 @@ else
 	echo "Instalar versão do docker"
 	sudo yum install $VERSAO_DOCKER -y -q
 	sudo systemctl enable docker.service
+	sudo sed -i s/dockerd/dockerd\ \-\-insecure\-registry\=portus\.conductor\.tecnologia\:5000/g /usr/lib/systemd/system/docker.service
+	sudo systemctl daemon-reload
 	sudo service docker start
 	sleep 5
 	
