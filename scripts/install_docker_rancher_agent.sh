@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script: Instalação do docker-engine versão 17.03.1.ce e adicionar usuário rancher para não pedir senha
 
+yum downgrade redhat-release
+
 ## Validando se foi passada as variaveis no comando
 echo "## Validando variaveis"
 if [ -z "$1" ];
